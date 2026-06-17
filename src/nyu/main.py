@@ -1,7 +1,7 @@
 import numpy as np
 
 import nyu.nyu_frame as nyu_frame
-from nyu.nyu_camera_params import init_scene
+from nyu.nyu_config import init_scene
 from common.pointcloud import BBox3D, Scene
 from common.visualize import visualize
 import common.pointcloud_normalization as norm
@@ -16,15 +16,7 @@ def build_bbox(scene: Scene, R: np.ndarray) -> BBox3D:
         [-0.1494, 0.0, 0.9888],
     ])
     bbox = BBox3D(position=position, size=size, rotation=rotation)
-    return transform_bbox(scene, R, bbox)
-
-
-def transform_bbox(scene: Scene, R: np.ndarray, bbox: BBox3D) -> BBox3D:
-    center = scene.rgb_camera.to_world_pos(bbox.position)
-    rotation = scene.rgb_camera.extrinsics.rotation.transpose() @ bbox.rotation
-    center = R @ center
-    rotation = R @ rotation
-    return BBox3D(position=center, size=bbox.size, rotation=rotation)
+    return scene.bbox_camera_to_world(R, bbox)
 
 
 scene = init_scene()

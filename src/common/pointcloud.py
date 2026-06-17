@@ -33,7 +33,6 @@ class BBox3D:
     size: np.ndarray  # 3
     rotation: np.ndarray  # 3 * 3
 
-
 def relative(base: Extrinsics, to: Extrinsics) -> Extrinsics:
     rotation = to.rotation @ base.rotation.transpose()
     translation_np = to.translation - rotation @ base.translation
@@ -214,3 +213,10 @@ class Scene:
         if depth is None:
             return None
         return self.depth_camera.depth_to_world_pos(i, j, depth)
+
+    def bbox_camera_to_world(self, R: np.ndarray, bbox: BBox3D) -> BBox3D:
+        center = self.rgb_camera.to_world_pos(bbox.position)
+        rotation = self.rgb_camera.extrinsics.rotation.transpose() @ bbox.rotation
+        center = R @ center
+        rotation = R @ rotation
+        return BBox3D(position=center, size=bbox.size, rotation=rotation)

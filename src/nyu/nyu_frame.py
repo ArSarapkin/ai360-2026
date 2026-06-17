@@ -1,14 +1,14 @@
 from common.pointcloud import *
-from nyu.nyu_camera_params import *
+from nyu.nyu_config import *
 from PIL import Image
 import cv2
 
-rgb_a = '../data/basements/a/r.ppm'
-depth_a = '../data/basements/a/d.pgm'
-rgb_b = '../data/basements/b/r.ppm'
-depth_b = '../data/basements/b/d.pgm'
-rgb_c = '../data/basements/c/r.ppm'
-depth_c = '../data/basements/c/d.pgm'
+rgb_a = '../../data/basements/a/r.ppm'
+depth_a = '../../data/basements/a/d.pgm'
+rgb_b = '../../data/basements/b/r.ppm'
+depth_b = '../../data/basements/b/d.pgm'
+rgb_c = '../../data/basements/c/r.ppm'
+depth_c = '../../data/basements/c/d.pgm'
 
 class DepthMapNYU(DepthMap):
     depth_param_1: float
