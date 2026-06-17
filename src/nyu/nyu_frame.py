@@ -10,28 +10,20 @@ depth_b = '../../data/basements/b/d.pgm'
 rgb_c = '../../data/basements/c/r.ppm'
 depth_c = '../../data/basements/c/d.pgm'
 
-class DepthMapNYU(DepthMap):
-    depth_param_1: float
-    depth_param_2: float
 
-    def __init__(self, image, depth_param_1, depth_param_2):
-        super().__init__(image)
-        self.depth_param_1 = depth_param_1
-        self.depth_param_2 = depth_param_2
+def _raw_to_depth_nyu(raw: np.ndarray, depth_param_1: float, depth_param_2: float) -> np.ndarray:
+    depth = depth_param_1 / (depth_param_2 - raw.astype(np.float32))
+    depth[depth > 10] = np.nan
+    return depth
 
-    def get(self, i, j) -> float | None:
-        raw = float(self.image[i, j])
-        depth = self.depth_param_1 / (self.depth_param_2 - raw)
-        if depth > 10:
-            return None
-        return depth
 
 def get_frame(rgb_path, depth_path, factor: float = 0):
     rgb = np.array(Image.open(rgb_path))
-    depth = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-    depth = depth.byteswap()
-    depth_map = DepthMapNYU(image=depth, depth_param_1=depthParam1, depth_param_2=depthParam2)
-    return Frame(rgb, shuffling(depth_map, factor))
+    raw = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
+    raw = raw.byteswap()
+    depth = _raw_to_depth_nyu(raw, depthParam1, depthParam2)
+    depth = shuffling(depth, factor)
+    return Frame(rgb, depth)
 
 def frame_a(factor: float = 0):
     return get_frame(rgb_a, depth_a, factor)

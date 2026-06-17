@@ -49,14 +49,14 @@ def init_rgb_camera() -> Camera:
     I = to_intrinsics(fx=fx_rgb, fy=fy_rgb, cx=cx_rgb, cy=cy_rgb)
     E = Extrinsics(rotation=np.array(R), translation=np.array([t_x, t_y, t_z]))
     D = Distortion(k=[k1_rgb, k2_rgb, k3_rgb], p1=p1_rgb, p2=p2_rgb)
-    return Camera(intrinsics=I, extrinsics=E, distortion=D)
+    return Camera(intrinsics=I, extrinsics=E) #distortion=D)
 
 
 def init_depth_camera() -> Camera:
     I = to_intrinsics(fx=fx_d, fy=fy_d, cx=cx_d, cy=cy_d)
     E = Extrinsics(rotation=np.eye(3), translation=np.zeros(3))
     D = Distortion(k=[k1_d, k2_d, k3_d], p1=p1_d, p2=p2_d)
-    return Camera(intrinsics=I, extrinsics=E, distortion=D)
+    return Camera(intrinsics=I, extrinsics=E) #distortion=D)
 
 def init_scene() -> Scene:
     depth = init_depth_camera()
