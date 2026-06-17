@@ -1,3 +1,4 @@
+import time
 from dataclasses import dataclass
 from abc import abstractmethod, ABC
 
@@ -179,6 +180,8 @@ class Scene:
             self,
             frame: Frame,
     ) -> list[WorldPoint]:
+        start_time = time.time()
+        print("Starting processing frame")
         H, W = frame.depth_map.shape()
         point_cloud: list[WorldPoint] = []
         for i in range(H):
@@ -186,6 +189,8 @@ class Scene:
                 point = self.pixel_to_world_point(frame, i, j)
                 if point is not None:
                     point_cloud.append(point)
+        finish_time = time.time()
+        print(f"Finished processing frame in {finish_time - start_time} seconds")
         return point_cloud
 
     def pixel_to_world_point(
