@@ -6,6 +6,7 @@ import io
 import base64
 import json
 import re
+import common.pointcloud as pc
 
 from common.pointcloud import BBox3D
 
@@ -46,8 +47,17 @@ def ask(text: str, image: Image.Image, model: str = "qwen-vl-max"):
 output_format = "`{\"bbox_3d\":[x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw]}`"
 
 
-def detect(target: str, img: Image.Image):
-    prompt = f"Find {target} in this image, provide its 3D bounding box. The output format required is JSON: {output_format}."
+def build_detect_prompt(target: str, intrinsics: pc.Intrinsics) -> str:
+    return (
+        f"Find the {target} in this image and output ONE 3D bounding box as JSON: "
+        f"{output_format}\n"
+        f"Intrinsics: fx={intrinsics.fx}, fy={intrinsics.fy}, "
+        f"cx={intrinsics.cx}, cy={intrinsics.cy}.\n"
+    )
+
+
+def detect(target: str, img: Image.Image, intrinsics: pc.Intrinsics):
+    prompt = build_detect_prompt(target, intrinsics)
     response = ask(prompt, img)
     text = response.strip()
     start = text.find('{')
@@ -67,11 +77,10 @@ def angles_to_rotation(angle_x, angle_y, angle_z):
     return Rz @ Ry @ Rx
 
 
-def detect_bbox(target: str, img: Image.Image):
-    detection = detect(target, img)
+def detect_bbox(target: str, img: Image.Image, intrinsics: pc.Intrinsics):
+    detection = detect(target, img, intrinsics)
     position = np.array(detection[0:3])
     size = np.array(detection[3:6])
     roll, pitch, yaw = detection[6], detection[7], detection[8]
     rotation = angles_to_rotation(roll, pitch, yaw)
     return BBox3D(position=position, size=size, rotation=rotation)
-

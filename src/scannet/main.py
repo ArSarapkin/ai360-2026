@@ -44,8 +44,9 @@ for target in targets:
     img_id, target_name = target
     img_id = str(img_id).zfill(5)
     img = Image.open(f'../../data/scannet/posed_images/scene0000_00/{img_id}.jpg')
-    bbox = ai.detect_bbox(target_name, img)
-    bbox = scannet_scene.build_scene(img_id).bbox_camera_to_world(R, t, bbox)
+    scene = scannet_scene.build_scene(img_id)
+    bbox = ai.detect_bbox(target_name, img, scene.rgb_camera.intrinsics)
+    bbox = scene.bbox_camera_to_world(R, t, bbox)
     bboxes.append(bbox)
 
 visualize(point_cloud, bboxes)
