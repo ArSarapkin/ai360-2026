@@ -199,9 +199,9 @@ class Scene:
             return None
         return self.depth_camera.depth_to_world_pos(i, j, d)
 
-    def bbox_camera_to_world(self, R: np.ndarray, bbox: BBox3D) -> BBox3D:
+    def bbox_camera_to_world(self, R: np.ndarray, t: np.ndarray, bbox: BBox3D) -> BBox3D:
         center = self.rgb_camera.to_world_pos(bbox.position)
         rotation = self.rgb_camera.extrinsics.rotation.transpose() @ bbox.rotation
-        center = R @ center
+        center = (R @ center) + t
         rotation = R @ rotation
         return BBox3D(position=center, size=bbox.size, rotation=rotation)
