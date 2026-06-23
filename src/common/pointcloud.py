@@ -163,11 +163,9 @@ class Scene:
         return np.concatenate([world_positions, colors], axis=1)  # (N, 6)
 
 
-    def bbox_camera_to_world(self, R: np.ndarray, t: np.ndarray, bbox: BBox3D) -> BBox3D:
+    def bbox_camera_to_world(self, bbox: BBox3D) -> BBox3D:
         center = self.rgb_camera.to_world_pos(bbox.position)
         rotation = self.rgb_camera.extrinsics.rotation.transpose() @ bbox.rotation
-        center = (R @ center) + t
-        rotation = R @ rotation
         return BBox3D(position=center, size=bbox.size, rotation=rotation)
 
 

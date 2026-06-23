@@ -9,10 +9,10 @@ def pointcloud_open3d(point_cloud: np.ndarray) -> o3d.geometry.PointCloud:
     return pcd
 
 def bbox_open3d(bbox: BBox3D) -> o3d.geometry.OrientedBoundingBox:
-    bbox = o3d.geometry.OrientedBoundingBox(
-        center=bbox.position,
-        R=bbox.rotation,
-        extent=bbox.size,
+    result = o3d.geometry.OrientedBoundingBox(
+        center=bbox.position.get().astype(numpy.float64),
+        R=bbox.rotation.get().astype(numpy.float64),
+        extent=bbox.size.get().astype(numpy.float64),
     )
-    bbox.color = (1, 0, 0)
-    return bbox
+    result.color = (1, 0, 0)
+    return result
