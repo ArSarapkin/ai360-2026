@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import cupy as cp
 import openai
@@ -13,10 +15,11 @@ from common.pointcloud import BBox3D
 
 api_token = "sk-mr-5d314a41ac90ce0d25119dd73969c4e5dea255eec4993fac590b88902c596d26"
 base_url = "https://api.mulerouter.ai/vendors/openai/v1"
+local_base_url = "http://127.0.0.1:1234/v1"
 
 client = OpenAI(
     api_key=api_token,
-    base_url=base_url,
+    base_url=local_base_url,
 )
 
 
@@ -79,9 +82,12 @@ def angles_to_rotation(angle_x, angle_y, angle_z):
 
 
 def detect_bbox(target: str, img: Image.Image, intrinsics: pc.Intrinsics):
+    t_start = time.time()
     detection = detect(target, img, intrinsics)
     position = cp.array(detection[0:3])
     size = cp.array(detection[3:6])
     roll, pitch, yaw = detection[6], detection[7], detection[8]
     rotation = cp.asarray(angles_to_rotation(roll, pitch, yaw))
+    t_stop = time.time()
+    print(f"Detection time: {t_stop - t_start}")
     return BBox3D(position=position, size=size, rotation=rotation)
