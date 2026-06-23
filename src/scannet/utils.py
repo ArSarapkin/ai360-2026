@@ -1,30 +1,41 @@
+import os
 import time
 import cupy as np
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from scannet.scannet_config import ScannetScene
 
 
-def scene_pointcloud(scene_path, frame_id_limit = 0):
+def scene_pointcloud(scene_path, frame_id_limit=0, num_workers=8):
     scannet_scene = ScannetScene(scene_path)
 
-    def frame_pointcloud(frame_id):
+    frame_ids = sorted(
+        os.path.splitext(f)[0]
+        for f in os.listdir(scene_path)
+        if f.endswith('.jpg')
+    )
+    if frame_id_limit > 0:
+        frame_ids = [f for f in frame_ids if int(f) <= frame_id_limit]
+    frame_ids = frame_ids[::5]
+
+    def process_frame(frame_id):
         start_time = time.time()
         print(f"Starting processing frame {frame_id}")
         scene = scannet_scene.build_scene(frame_id)
         frame = scannet_scene.load_frame(frame_id)
-        finish_time = time.time()
-        print(f"Finished processing frame in {finish_time - start_time} seconds")
-        return scene.process_frame(frame)
+        result = scene.process_frame(frame)
+        print(f"Finished processing frame {frame_id} in {time.time() - start_time}")
+        return frame_id, result
 
-    chunks = []
-    frame_id = 0
-    while True:
-        if frame_id > frame_id_limit > 0:
-            break
-        try:
-            frame = str(frame_id).zfill(5)
-            chunks.append(frame_pointcloud(frame))
-            frame_id += 4
-        except:
-            break
-    return np.concatenate(chunks, axis=0)
+    chunks = {}
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = {executor.submit(process_frame, fid): fid for fid in frame_ids}
+        for future in as_completed(futures):
+            try:
+                fid, result = future.result()
+                chunks[fid] = result
+            except Exception as e:
+                print(f"Frame {futures[future]} failed: {e}")
+
+    ordered = [chunks[fid] for fid in sorted(chunks)]
+    return np.concatenate(ordered, axis=0)
