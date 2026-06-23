@@ -163,9 +163,11 @@ class Scene:
         return np.concatenate([world_positions, colors], axis=1)  # (N, 6)
 
 
-    def bbox_camera_to_world(self, bbox: BBox3D) -> BBox3D:
+    def bbox_camera_to_world(self, bbox: BBox3D, R = np.eye(3), t = np.zeros(3)) -> BBox3D:
         center = self.rgb_camera.to_world_pos(bbox.position)
         rotation = self.rgb_camera.extrinsics.rotation.transpose() @ bbox.rotation
+        center = (R @ center) + t
+        rotation = R @ rotation
         return BBox3D(position=center, size=bbox.size, rotation=rotation)
 
 
@@ -173,3 +175,7 @@ def colored(point_cloud: np.ndarray, color: np.ndarray) -> np.ndarray:
     result = point_cloud.copy()
     result[:, 3:6] = color
     return result
+
+def apply_axis_align(point_cloud: np.ndarray, R: np.ndarray, t: np.ndarray) -> np.ndarray:
+    point_cloud[:, :3] = point_cloud[:, :3] @ R.T + t
+    return point_cloud

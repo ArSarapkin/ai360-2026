@@ -5,8 +5,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from scannet.scannet_config import ScannetScene
 
+data_path = '../../data/scannet'
 
 def scene_pointcloud(scene_path, frame_id_limit=0, num_workers=8):
+    scene_path = f'{data_path}/posed_images/{scene_path}'
     scannet_scene = ScannetScene(scene_path)
 
     frame_ids = sorted(
