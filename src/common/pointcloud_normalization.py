@@ -1,11 +1,12 @@
-import numpy as np
+import cupy as np
+import numpy
 import open3d as o3d
 from common.pointcloud import *
 from common.open3d_utils import *
 import scipy.spatial.transform as transform
 
 
-def floor_normal(point_cloud: list[WorldPoint]):
+def floor_normal(point_cloud: np.ndarray):
     o3d_point_cloud = pointcloud_open3d(point_cloud)
     plane_model, _ = o3d_point_cloud.segment_plane(
         distance_threshold=0.02,
@@ -17,34 +18,21 @@ def floor_normal(point_cloud: list[WorldPoint]):
     return normal
 
 
-def floor_rotation(point_cloud: list[WorldPoint]):
+def floor_rotation(point_cloud: np.ndarray):
     normal = floor_normal(point_cloud)
-    R, _ = transform.Rotation.align_vectors([[0, 0, 1]], [normal])
-    return R.as_matrix()
+    R, _ = transform.Rotation.align_vectors([[0, 0, 1]], [numpy.asarray(normal)])
+    return np.asarray(R.as_matrix())
 
 
-def normalize_point(point: WorldPoint, rotation: np.ndarray) -> WorldPoint:
-    new_position = (rotation @ point.position.transpose()).transpose()
-    return WorldPoint(new_position, point.color)
-
-
-def normalize(point_cloud: list[WorldPoint]) -> tuple[list[WorldPoint], np.ndarray]:  # normalized, rotation
+def normalize(point_cloud: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     R = floor_rotation(point_cloud)
-    normalized = [normalize_point(p, R) for p in point_cloud]
+    normalized = point_cloud.copy()
+    normalized[:, :3] = (R @ point_cloud[:, :3].T).T
     return normalized, R
 
 
-def normalize_transpose(point_cloud: list[WorldPoint]) -> tuple[list[WorldPoint], np.ndarray]:
-    transpose = np.zeros(3)
-    for point in point_cloud:
-        transpose -= point.position
-    transpose /= len(point_cloud)
-    normalized = []
-    for point in point_cloud:
-        normalized.append(
-            WorldPoint(
-                position=point.position + transpose,
-                color=point.color
-            )
-        )
-    return normalized, transpose
+def normalize_transpose(point_cloud: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    t = -point_cloud[:, :3].mean(axis=0)
+    normalized = point_cloud.copy()
+    normalized[:, :3] = point_cloud[:, :3] + t
+    return normalized, t

@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as np
 import openai
 from openai import OpenAI
 from PIL import Image

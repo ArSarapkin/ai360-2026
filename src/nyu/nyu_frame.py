@@ -2,6 +2,7 @@ from common.pointcloud import *
 from nyu.nyu_config import *
 from PIL import Image
 import cv2
+import numpy
 
 rgb_a = '../../data/basements/a/r.ppm'
 depth_a = '../../data/basements/a/d.pgm'
@@ -18,9 +19,8 @@ def _raw_to_depth_nyu(raw: np.ndarray, depth_param_1: float, depth_param_2: floa
 
 
 def get_frame(rgb_path, depth_path, factor: float = 0):
-    rgb = np.array(Image.open(rgb_path))
-    raw = cv2.imread(depth_path, cv2.IMREAD_UNCHANGED)
-    raw = raw.byteswap()
+    rgb = np.asarray(numpy.array(Image.open(rgb_path)))
+    raw = np.asarray(cv2.imread(depth_path, cv2.IMREAD_UNCHANGED).byteswap())
     depth = _raw_to_depth_nyu(raw, depthParam1, depthParam2)
     depth = shuffling(depth, factor)
     return Frame(rgb, depth)

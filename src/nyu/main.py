@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as np
 
 import nyu.nyu_frame as nyu_frame
 from nyu.nyu_config import init_scene

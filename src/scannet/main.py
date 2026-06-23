@@ -1,5 +1,6 @@
-import numpy as np
+import cupy as np
 
+from scannet.labels import load_scan
 from scannet.scannet_config import *
 from common.pointcloud_normalization import *
 from common.visualize import *
@@ -18,24 +19,25 @@ def frame_pointcloud(frame_id):
     return scene.process_frame(frame)
 
 
-point_cloud = []
+chunks = []
 frame_id = 0
-frame_id_limit = 20
+frame_id_limit = 2000
 while True:
     if frame_id > frame_id_limit:
         break
     try:
         frame = str(frame_id).zfill(5)
-        point_cloud += frame_pointcloud(frame)
-        frame_id += 5
+        chunks.append(frame_pointcloud(frame))
+        frame_id += 10
     except:
         break
-point_cloud, R = normalize(point_cloud)
+point_cloud = np.concatenate(chunks, axis=0)
+R = np.eye(3, 3)# point_cloud, R = normalize(point_cloud)
 point_cloud, t = normalize_transpose(point_cloud)
 
 targets = [
-    (5, "cabinet"),
-    (17, "table"),
+    #(5, "cabinet"),
+    #(17, "table"),
 ]
 
 bboxes = []
@@ -49,4 +51,10 @@ for target in targets:
     bbox = scene.bbox_camera_to_world(R, t, bbox)
     bboxes.append(bbox)
 
-visualize(point_cloud, bboxes)
+expected = load_scan('../../data/scannet/points/scene0000_00.bin')
+expected, _ = normalize_transpose(expected)
+
+RED = np.array([255, 0, 0])
+BLUE = np.array([0, 0, 255])
+
+visualize(np.concatenate([colored(point_cloud, BLUE), colored(expected, RED)], axis=0), bboxes)

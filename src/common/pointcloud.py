@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 
-import numpy as np
+import cupy as np
 
 
 @dataclass
@@ -108,12 +108,6 @@ class Camera:
         return np.stack([i, j], axis=1)  # (N, 2)
 
 
-@dataclass
-class WorldPoint:
-    position: np.ndarray  # 3
-    color: np.ndarray  # 3
-
-
 def is_valid_image_pos(image: np.ndarray, i: int, j: int) -> bool:
     H, W = image.shape[:2]
     return 0 <= i < H and 0 <= j < W
@@ -141,7 +135,7 @@ class Scene:
     def process_frame(
             self,
             frame: Frame,
-    ) -> list[WorldPoint]:
+    ) -> np.ndarray:
         H, W = frame.depth.shape[:2]
 
         ii, jj = np.meshgrid(np.arange(H), np.arange(W), indexing='ij')
@@ -164,40 +158,10 @@ class Scene:
         world_positions = world_positions[in_bounds]
         rgb_ij = rgb_ij[in_bounds]
 
-        colors = frame.rgb_image[rgb_ij[:, 0], rgb_ij[:, 1]]  # (N, 3)
+        colors = frame.rgb_image[rgb_ij[:, 0], rgb_ij[:, 1]].astype(np.float32)  # (N, 3)
 
-        point_cloud = [
-            WorldPoint(position=world_positions[k], color=colors[k])
-            for k in range(len(world_positions))
-        ]
+        return np.concatenate([world_positions, colors], axis=1)  # (N, 6)
 
-        return point_cloud
-
-    def pixel_to_world_point(
-            self,
-            frame: Frame,
-            i: int,
-            j: int,
-    ) -> WorldPoint | None:
-        world_pos = self.depth_to_world_pos(frame.depth, i, j)
-        if world_pos is None:
-            return None
-        rgb_i, rgb_j = self.rgb_camera.world_to_image_pos(world_pos)
-        if not is_valid_image_pos(frame.rgb_image, rgb_i, rgb_j):
-            return None
-        color: np.ndarray = frame.rgb_image[rgb_i, rgb_j]
-        return WorldPoint(position=world_pos, color=color)
-
-    def depth_to_world_pos(
-            self,
-            depth: np.ndarray,
-            i: int,
-            j: int,
-    ) -> np.ndarray | None:
-        d = depth[i, j]
-        if not np.isfinite(d):
-            return None
-        return self.depth_camera.depth_to_world_pos(i, j, d)
 
     def bbox_camera_to_world(self, R: np.ndarray, t: np.ndarray, bbox: BBox3D) -> BBox3D:
         center = self.rgb_camera.to_world_pos(bbox.position)
@@ -205,3 +169,9 @@ class Scene:
         center = (R @ center) + t
         rotation = R @ rotation
         return BBox3D(position=center, size=bbox.size, rotation=rotation)
+
+
+def colored(point_cloud: np.ndarray, color: np.ndarray) -> np.ndarray:
+    result = point_cloud.copy()
+    result[:, 3:6] = color
+    return result
