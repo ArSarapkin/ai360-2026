@@ -4,9 +4,6 @@ import numpy as np
 import cupy as cp
 import openai
 from openai import OpenAI
-from PIL import Image
-import io
-import base64
 import json
 import re
 import common.pointcloud as pc
@@ -23,21 +20,18 @@ client = OpenAI(
 )
 
 
-def ask(text: str, image: Image.Image, model: str = "qwen-vl-max"):
-    buffer = io.BytesIO()
-    image.save(buffer, format="JPEG")
-    image_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+def ask(text: str, image_base64: str, model: str = "qwen-vl-max"):
     messages = [
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": text},
                 {
                     "type": "image_url",
                     "image_url": {
-                        "url": f"data:image/png;base64,{image_base64}"
+                        "url": f"data:image/jpeg;base64,{image_base64}"
                     }
-                }
+                },
+                {"type": "text", "text": text},
             ]
         }
     ]
@@ -60,14 +54,28 @@ def build_detect_prompt(target: str, intrinsics: pc.Intrinsics) -> str:
     )
 
 
-def detect(target: str, img: Image.Image, intrinsics: pc.Intrinsics):
+def _parse_detections(text: str) -> list:
+    first_bracket = text.find('[')
+    first_brace = text.find('{')
+    if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
+        start, end = first_bracket, text.rfind(']')
+        raw = json.loads(text[start:end + 1])
+        return [item["bbox_3d"] for item in raw]
+    else:
+        start, end = first_brace, text.rfind('}')
+        raw = json.loads(text[start:end + 1])
+        return [raw["bbox_3d"]]
+
+
+def detect(target: str, img_base64: str, intrinsics: pc.Intrinsics) -> list:
     prompt = build_detect_prompt(target, intrinsics)
-    response = ask(prompt, img)
+    response = ask(prompt, img_base64)
     text = response.strip()
-    start = text.find('{')
-    end = text.rfind('}')
-    data = json.loads(text[start:end + 1])
-    return list(data["bbox_3d"])
+    try:
+        return _parse_detections(text)
+    except (json.JSONDecodeError, KeyError, ValueError) as e:
+        print(f"[detect:{target}] JSON error: {e}\nRaw response: {text}")
+        return []
 
 
 def angles_to_rotation(angle_x, angle_y, angle_z):
@@ -81,13 +89,16 @@ def angles_to_rotation(angle_x, angle_y, angle_z):
     return Rz @ Ry @ Rx
 
 
-def detect_bbox(target: str, img: Image.Image, intrinsics: pc.Intrinsics):
+def detect_bbox(target: str, img_base64: str, intrinsics: pc.Intrinsics) -> list[BBox3D]:
     t_start = time.time()
-    detection = detect(target, img, intrinsics)
-    position = cp.array(detection[0:3])
-    size = cp.array(detection[3:6])
-    roll, pitch, yaw = detection[6], detection[7], detection[8]
-    rotation = cp.asarray(angles_to_rotation(roll, pitch, yaw))
+    detections = detect(target, img_base64, intrinsics)
+    bboxes = []
+    for detection in detections:
+        position = cp.array(detection[0:3])
+        size = cp.array(detection[3:6])
+        roll, pitch, yaw = detection[6], detection[7], detection[8]
+        rotation = cp.asarray(angles_to_rotation(roll, pitch, yaw))
+        bboxes.append(BBox3D(position=position, size=size, rotation=rotation))
     t_stop = time.time()
-    print(f"Detection time: {t_stop - t_start}")
-    return BBox3D(position=position, size=size, rotation=rotation)
+    print(f"[{target}] detected {len(bboxes)}, time: {t_stop - t_start:.2f}s")
+    return bboxes
