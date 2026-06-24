@@ -1,8 +1,10 @@
 import base64
 import io
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ai import ai
+from common.nms import NMS
 from common.pointcloud import apply_axis_align
 from common.visualize import visualize
 from scannet.labels import LabelsLoader
@@ -16,7 +18,7 @@ data_path = '../../data/scannet'
 scannet_scene = ScannetScene(f'{data_path}/posed_images/{scene_name}')
 point_cloud = scene_pointcloud(scene_name)
 
-images = range(0, 100   , 10)
+images = range(0, 10, 2)
 
 bboxes = []
 
@@ -29,7 +31,13 @@ classes_scannet = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door',
                    'refrigerator', 'showercurtrain', 'toilet', 'sink', 'bathtub',
                    'garbagebin']
 
-def detect_all(img, scene, axis_R, axis_t):
+MAX_PARALLEL = 18
+
+def detect_all(img_id, scene, axis_R, axis_t):
+    t_start = time.time()
+
+    img_id = str(img_id).zfill(5)
+    img = Image.open(f'{data_path}/posed_images/{scene_name}/{img_id}.jpg')
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
@@ -39,7 +47,7 @@ def detect_all(img, scene, axis_R, axis_t):
         return [scene.bbox_camera_to_world(bbox, axis_R, axis_t) for bbox in bboxes]
 
     bboxes = []
-    with ThreadPoolExecutor(max_workers=len(classes_scannet)) as executor:
+    with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as executor:
         futures = [executor.submit(detect_one, t) for t in classes_scannet]
         for future in as_completed(futures):
             try:
@@ -47,14 +55,23 @@ def detect_all(img, scene, axis_R, axis_t):
             except Exception as e:
                 print(f"Detection error: {e}")
 
+    t_stop = time.time()
+    print(f"detected {len(bboxes)}, time: {t_stop - t_start:.2f}s")
+
     return bboxes
 
 
+t0 = time.time()
+
 for img_id in images:
     img_id = str(img_id).zfill(5)
-    img = Image.open(f'{data_path}/posed_images/{scene_name}/{img_id}.jpg')
     scene = scannet_scene.build_scene(img_id)
-    img_bboxes = detect_all(img, scene, axis_R, axis_t)
+    img_bboxes = detect_all(img_id, scene, axis_R, axis_t)
     bboxes.extend(img_bboxes)
+
+total_time = time.time() - t0
+print(f"total time: {total_time:.2f}s")
+
+bboxes = NMS(bboxes, 0.25)
 
 visualize(point_cloud, bboxes)

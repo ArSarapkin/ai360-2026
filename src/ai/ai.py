@@ -12,7 +12,7 @@ from common.pointcloud import BBox3D
 
 api_token = "sk-mr-5d314a41ac90ce0d25119dd73969c4e5dea255eec4993fac590b88902c596d26"
 base_url = "https://api.mulerouter.ai/vendors/openai/v1"
-local_base_url = "http://127.0.0.1:1234/v1"
+local_base_url = "http://45.157.161.245:8080/v1"
 
 client = OpenAI(
     api_key=api_token,
@@ -38,11 +38,12 @@ def ask(text: str, image_base64: str, model: str = "qwen-vl-max"):
     response = client.chat.completions.create(
         model=model,
         messages=messages,
+        max_tokens=256,
     )
     return response.choices[0].message.content
 
 
-output_format = "`{\"bbox_3d\":[x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw]}`"
+output_format = "`{\"bbox_3d\":[x_center, y_center, z_center, x_size, y_size, z_size, roll, pitch, yaw], \"confidence\": score}`"
 
 
 def build_detect_prompt(target: str, intrinsics: pc.Intrinsics) -> str:
@@ -54,17 +55,17 @@ def build_detect_prompt(target: str, intrinsics: pc.Intrinsics) -> str:
     )
 
 
-def _parse_detections(text: str) -> list:
+def _parse_detections(text: str) -> list[tuple[list, float]]:
     first_bracket = text.find('[')
     first_brace = text.find('{')
     if first_bracket != -1 and (first_brace == -1 or first_bracket < first_brace):
         start, end = first_bracket, text.rfind(']')
         raw = json.loads(text[start:end + 1])
-        return [item["bbox_3d"] for item in raw]
+        return [(item["bbox_3d"], item.get("confidence", 1.0)) for item in raw]
     else:
         start, end = first_brace, text.rfind('}')
         raw = json.loads(text[start:end + 1])
-        return [raw["bbox_3d"]]
+        return [(raw["bbox_3d"], raw.get("confidence", 1.0))]
 
 
 def detect(target: str, img_base64: str, intrinsics: pc.Intrinsics) -> list:
@@ -93,12 +94,12 @@ def detect_bbox(target: str, img_base64: str, intrinsics: pc.Intrinsics) -> list
     t_start = time.time()
     detections = detect(target, img_base64, intrinsics)
     bboxes = []
-    for detection in detections:
+    for detection, confidence in detections:
         position = cp.array(detection[0:3])
         size = cp.array(detection[3:6])
         roll, pitch, yaw = detection[6], detection[7], detection[8]
         rotation = cp.asarray(angles_to_rotation(roll, pitch, yaw))
-        bboxes.append(BBox3D(position=position, size=size, rotation=rotation))
+        bboxes.append(BBox3D(position=position, size=size, rotation=rotation, confidence=confidence))
     t_stop = time.time()
     print(f"[{target}] detected {len(bboxes)}, time: {t_stop - t_start:.2f}s")
     return bboxes

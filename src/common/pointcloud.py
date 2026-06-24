@@ -31,6 +31,10 @@ class BBox3D:
     position: np.ndarray  # 3
     size: np.ndarray  # 3
     rotation: np.ndarray  # 3 * 3
+    confidence: float = 1.0
+
+    def volume(self):
+        return self.size.prod()
 
 
 def relative(base: Extrinsics, to: Extrinsics) -> Extrinsics:
