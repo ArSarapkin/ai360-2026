@@ -38,7 +38,7 @@ def ask(text: str, image_base64: str, model: str = "qwen-vl-max"):
     response = client.chat.completions.create(
         model=model,
         messages=messages,
-        max_tokens=256,
+        max_tokens=512,
     )
     return response.choices[0].message.content
 

@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from ai import ai
 from common.nms import NMS
 from common.pointcloud import apply_axis_align
+from common.utils import IoU
 from common.visualize import visualize
 from scannet.labels import LabelsLoader
 from scannet.scannet_config import ScannetScene
@@ -18,7 +19,7 @@ data_path = '../../data/scannet'
 scannet_scene = ScannetScene(f'{data_path}/posed_images/{scene_name}')
 point_cloud = scene_pointcloud(scene_name)
 
-images = range(0, 10, 2)
+images = range(0, 300, 9)
 
 bboxes = []
 
@@ -73,5 +74,38 @@ total_time = time.time() - t0
 print(f"total time: {total_time:.2f}s")
 
 bboxes = NMS(bboxes, 0.25)
+
+actual = labels.load_bboxes(scene_name)
+
+def calc_metrics(bboxes, actual, threshold):
+    TP, FP, FN = 0, 0, len(actual)
+    used = [False] * len(actual)
+    for bbox in bboxes:
+        id = -1
+        best_iou = threshold
+        for i in range(len(actual)):
+            if used[i]:
+                continue
+            iou = IoU(bbox, actual[i])
+            if iou >= best_iou:
+                best_iou = iou
+                id = i
+        if id != -1:
+            TP += 1
+            used[id] = True
+            FN -= 1
+        else:
+            FP += 1
+
+    precision = TP / (TP + FP)
+    recall = TP / (TP + FN)
+    f1 = 2 * (precision * recall) / (precision + recall)
+    return precision, recall, f1
+
+p, r, f = calc_metrics(bboxes, actual, 0.25)
+
+print(f"precision: {p:.2f}")
+print(f"recall: {r:.2f}")
+print(f"f1-score: {f:.2f}")
 
 visualize(point_cloud, bboxes)
