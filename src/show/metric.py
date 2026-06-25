@@ -1,17 +1,17 @@
 import base64
 import io
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from ai import ai
-from common.nms import NMS
+from PIL import Image
+
+from ai.per_class_detector import PerClassDetector
+from common.deduplication import NMS, merge
 from common.pointcloud import apply_axis_align
 from common.utils import IoU
 from common.visualize import visualize
 from scannet.labels import LabelsLoader
 from scannet.scannet_config import ScannetScene
 from scannet.utils import scene_pointcloud
-from PIL import Image
 
 scene_name = 'scene0000_00'
 data_path = '../../data/scannet'
@@ -32,33 +32,24 @@ classes_scannet = ['cabinet', 'bed', 'chair', 'sofa', 'table', 'door',
                    'refrigerator', 'showercurtrain', 'toilet', 'sink', 'bathtub',
                    'garbagebin']
 
-MAX_PARALLEL = 18
+detector = PerClassDetector(classes_scannet, max_parallel=18)
+
 
 def detect_all(img_id, scene, axis_R, axis_t):
     t_start = time.time()
 
     img_id = str(img_id).zfill(5)
+    t = time.time()
     img = Image.open(f'{data_path}/posed_images/{scene_name}/{img_id}.jpg')
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG")
     img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+    print(f"[{img_id}] encoded image: {time.time() - t:.2f}s")
 
-    def detect_one(target):
-        bboxes = ai.detect_bbox(target, img_base64, scene.rgb_camera.intrinsics)
-        return [scene.bbox_camera_to_world(bbox, axis_R, axis_t) for bbox in bboxes]
+    bboxes = [scene.bbox_camera_to_world(bbox, axis_R, axis_t)
+              for bbox in detector.detect(img_base64, scene.rgb_camera.intrinsics)]
 
-    bboxes = []
-    with ThreadPoolExecutor(max_workers=MAX_PARALLEL) as executor:
-        futures = [executor.submit(detect_one, t) for t in classes_scannet]
-        for future in as_completed(futures):
-            try:
-                bboxes.extend(future.result())
-            except Exception as e:
-                print(f"Detection error: {e}")
-
-    t_stop = time.time()
-    print(f"detected {len(bboxes)}, time: {t_stop - t_start:.2f}s")
-
+    print(f"[{img_id}] detect_all: {len(bboxes)} bboxes, time: {time.time() - t_start:.2f}s")
     return bboxes
 
 
@@ -70,23 +61,26 @@ for img_id in images:
     img_bboxes = detect_all(img_id, scene, axis_R, axis_t)
     bboxes.extend(img_bboxes)
 
-total_time = time.time() - t0
-print(f"total time: {total_time:.2f}s")
+print(f"total detection time: {time.time() - t0:.2f}s, total bboxes before NMS: {len(bboxes)}")
 
-bboxes = NMS(bboxes, 0.25)
+t = time.time()
+bboxes = merge(bboxes, 0.25)
+print(f"NMS: {len(bboxes)} bboxes remaining, time: {time.time() - t:.2f}s")
 
-actual = labels.load_bboxes(scene_name)
+t = time.time()
+expected = labels.load_bboxes(scene_name)
+print(f"loaded {len(expected)} GT bboxes: {time.time() - t:.2f}s")
 
-def calc_metrics(bboxes, actual, threshold):
-    TP, FP, FN = 0, 0, len(actual)
-    used = [False] * len(actual)
+def calc_metrics(bboxes, expected, threshold):
+    TP, FP, FN = 0, 0, len(expected)
+    used = [False] * len(expected)
     for bbox in bboxes:
         id = -1
         best_iou = threshold
-        for i in range(len(actual)):
+        for i in range(len(expected)):
             if used[i]:
                 continue
-            iou = IoU(bbox, actual[i])
+            iou = IoU(bbox, expected[i])
             if iou >= best_iou:
                 best_iou = iou
                 id = i
@@ -102,7 +96,7 @@ def calc_metrics(bboxes, actual, threshold):
     f1 = 2 * (precision * recall) / (precision + recall)
     return precision, recall, f1
 
-p, r, f = calc_metrics(bboxes, actual, 0.25)
+p, r, f = calc_metrics(bboxes, expected, 0.25)
 
 print(f"precision: {p:.2f}")
 print(f"recall: {r:.2f}")
