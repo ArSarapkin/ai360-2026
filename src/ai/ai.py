@@ -25,7 +25,7 @@ client = OpenAI(
 )
 
 
-def ask(text: str, image_base64: str, model: str = "qwen-vl-max"):
+def ask(text: str, image_base64: str, model: str = "qwen-vl-max", temperature: float = 0.0):
     messages = [
         {
             "role": "user",
@@ -45,7 +45,8 @@ def ask(text: str, image_base64: str, model: str = "qwen-vl-max"):
     response = client.chat.completions.create(
         model=model,
         messages=messages,
-        max_tokens=512,
+        max_tokens=1024 + 512,
+        temperature=temperature,
     )
     print(f"[ask] {time.time() - t:.2f}s")
     return response.choices[0].message.content
